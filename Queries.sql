@@ -1,5 +1,5 @@
 /*
-========== QUERY #1 INCIDENT REPORTS =====================
+========== QUERY #3 INCIDENT REPORTS =====================
 
 For each Client Site, the total number of incidents 
 report in the current month and the previous month
@@ -13,24 +13,34 @@ Additionally, the following two sites need a Client Name -
 */
 
 WITH 
-    CurrentMonth AS (   --Need incidents for this month (May)
+    CurrentMonth AS (   
         SELECT 
             CS.SiteID 
             ,COUNT(I.IncidentID) as CurrentM
         FROM CLIENT_SITES CS
-        LEFT JOIN ORDERS O on O.SiteID = CS.SiteID --NEED DATA FOR THIS TABLE
+        LEFT JOIN ORDERS O on O.SiteID = CS.SiteID 
         LEFT JOIN INCIDENTS I on I.OrderID = O.OrderID
         WHERE TO_CHAR(I.INCIDENT_DATE, 'YYYYMM') = (SELECT TO_CHAR(SYSDATE, 'YYYYMM')  FROM DUAL)           
         GROUP BY CS.SiteID
         )
-    ,PreviousMonth AS (   --Need more incidents for last month (April)
+    ,PreviousMonth AS (   
          SELECT 
              CS.SiteID 
             ,COUNT(I.IncidentID) as LastM
         FROM CLIENT_SITES CS
-        LEFT JOIN ORDERS O on O.SiteID = CS.SiteID --NEED DATA FOR THIS TABLE
+        LEFT JOIN ORDERS O on O.SiteID = CS.SiteID 
         LEFT JOIN INCIDENTS I on I.OrderID = O.OrderID
         WHERE TO_CHAR(I.INCIDENT_DATE, 'YYYYMM') = (SELECT TO_CHAR(ADD_MONTHS(SYSDATE, -1), 'YYYYMM')  FROM DUAL)           
+        GROUP BY CS.SiteID, I.Incident_Date
+        )
+    ,MonthBeforeLast AS (
+        SELECT 
+             CS.SiteID 
+            ,COUNT(I.IncidentID) as MBL
+        FROM CLIENT_SITES CS
+        LEFT JOIN ORDERS O on O.SiteID = CS.SiteID 
+        LEFT JOIN INCIDENTS I on I.OrderID = O.OrderID
+        WHERE TO_CHAR(I.INCIDENT_DATE, 'YYYYMM') = (SELECT TO_CHAR(ADD_MONTHS(SYSDATE, -2), 'YYYYMM')  FROM DUAL)           
         GROUP BY CS.SiteID, I.Incident_Date
         )
 SELECT 
@@ -38,10 +48,12 @@ SELECT
     ,C.Name as "Client Name"
     ,NVL(CM.CurrentM, 0) as "Incidents This Month"
     ,NVL(PM.LastM, 0) as "Incidents Last Month"
+    ,NVL(MBL.MBL,0) as "Incidents Month Before Last"
 FROM CLIENT_SITES CS
 LEFT JOIN CLIENTS C on C.ClientID = CS.ClientID
 LEFT JOIN CURRENTMONTH CM on CM.SiteID = CS.SiteID
 LEFT JOIN PREVIOUSMONTH PM on PM.SiteID = CS.SiteID
+LEFT JOIN MONTHBEFORELAST MBL.SiteID = CS.SiteID
 ORDER BY C.Name, CM.CurrentM;
 ---------------------------------------------------------------------------
 
@@ -121,7 +133,7 @@ ORDER BY E.LName;
 ---------------------------------------------------------------
 
 /*
-=========== QUERY #3 CLIENT ORDERS ======================
+=========== QUERY #2 CLIENT ORDERS ======================
 
 
 For clients who have placed an order, the
@@ -161,10 +173,9 @@ GROUP BY CS.ClientID, C.Name
 Order by C.Name;
 ------------------------------------------------------------------------------------------
 
-----Query 6 Commission and Seniority 
 
 /*
-=========== QUERY #4 COMISSION AND SENIORITY ======================
+=========== QUERY #4 COMmISSION AND SENIORITY ======================
 
 Returns each Customer Rep with Sales in the
 current year. For each Rep, the Seniority is shown as well
@@ -194,7 +205,6 @@ ORDER BY E.LName;
 ------------------------------------------------------------------------------
 
 
---Query 7 Best Selling Product
 
 /*
 =========== QUERY #5 BEST SELLING PRODUCTS ======================
@@ -216,7 +226,7 @@ GROUP BY I.ProductID
 ORDER BY SUM(I.QTY) DESC;
 -----------------------------------------------------------------
 
---Query 9 Client Summary
+
 /*
 
 =========== QUERY #6 CLIENT SUMMARY ======================
@@ -253,7 +263,6 @@ GROUP BY C.ClientID, C.Name, C.StateID, C.Discount, C.Primary_Contact_FName, C.P
 ORDER BY C.Name;
 --------------------------------------------------------------------------
 
---Query 10
 
 /*
 ================= QUERY #7 ORDERS & INCIDENTS ======================
@@ -274,12 +283,12 @@ alter the shipment to better serve the client.
 
 SELECT
      O.OrderID
-    ,O.Order_Date
-    ,OD.Ship_Date
+    ,O.Order_Date as "Order Date"
+    ,OD.Ship_Date as "Ship Date"
     ,(OD.Ship_Date - O.Order_Date) as "Elapsed Days Before Shipping"
-    ,OD.Ship_Method
+    ,OD.Ship_Method as "Ship Method"
     ,I.IncidentID
-    ,I.Complaint_Date
+    ,I.Complaint_Date as "Complaint Date"
    ,(CASE WHEN (I.Complaint_Date > OD.Ship_Date) THEN 'AFTER SHIPPING' 
         ELSE 'BEFORE SHIPPING' END) as "Complaint Date Occured:"
 FROM ORDERS O
@@ -385,3 +394,47 @@ LEFT JOIN DERMAL DERM on DERM.EmpID = CR.Empid
 LEFT JOIN DIABETIC DIA on DIA.EMPID = CR.Empid
 GROUP BY CR.EmpID, E.LName, E.FName, COS.Group_Name, DEN.Group_Name, DERM.Group_Name, DIA.Group_Name
 ORDER BY COUNT(DISTINCT(CPS.Specialty)) DESC, E.LName;
+-----------------------------------------------------------------
+
+
+/*
+================= QUERY #10 EMPLOYEE TENURE? BIRTHDAY LIST? ======================
+
+Displays all the Customer Reps and their product Specialties. 
+Customer Reps are sorted based on total number of specialties
+
+Show birthdays in the current month and next
+
+select * from employees;
+select * from incidents;
+*/
+
+SELECT
+    FName
+    ,MInitial
+    ,LName
+    ,Street
+    ,City
+    ,Emp_State
+    ,Zip
+    
+FROM EMPLOYEES
+;
+
+select trunc(months_between(sysdate,dob)/12) year,
+         trunc(mod(months_between(sysdate,dob),12)) month,
+        trunc(sysdate-add_months(dob,trunc(months_between(sysdate,dob)/12)*12+trunc(mod(months_between(sysdate,dob),12)))) day
+  from (Select to_date('15122000','DDMMYYYY') dob from dual);
+  
+  
+select FLOOR(months_between(TRUNC(sysdate),
+                      to_date('15-Oct-1990','DD-MON-YYYY')
+                     )/12)
+as age from dual;
+
+       AGE
+       
+SELECT TRUNC((SYSDATE - TO_DATE(DOB, 'YYYY-MM-DD'))/ 365.25) AS AGE_TODAY FROM DUAL;
+
+
+
